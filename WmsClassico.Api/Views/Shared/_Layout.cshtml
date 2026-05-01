@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - WMS Classico</title>
+    <link rel="stylesheet" href="~/styles/site.css" />
+</head>
+<body>
+    <!-- Barra de Pesquisa (Poka Yoke) - Flutuante no canto superior esquerdo -->
+    <div class="search-floating">
+        <div class="search-bar-top">
+            <input type="text" id="route-poka-search" placeholder="Pesquisar rotas ou logs Poka Yoke..." 
+                   onfocus="showPokaLogs()" onblur="hidePokaLogsAfterDelay()" />
+            <button type="button" id="search-btn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"/>
+                    <path d="M21 21l-4.35-4.35"/>
+                </svg>
+            </button>
+        </div>
+        <div class="poka-logs-panel hidden" id="poka-logs-panel" onmouseenter="cancelHidePoka()" onmouseleave="hidePokaLogsAfterDelay()">
+            <ul class="poka-logs-list" id="poka-logs-list">
+                @foreach (var log in Model.PokaYokeLogs)
+                {
+                    <li class="poka-log-item" data-search="@log.UserName @log.Action">
+                        <span class="log-user">@log.UserName</span>
+                        <span class="log-action">@log.Action</span>
+                        <span class="log-time">@log.FormattedTime - @log.FormattedDate</span>
+                    </li>
+                }
+            </ul>
+        </div>
+    </div>
+    
+    <div class="shell">
+        <header class="topbar">
+            <div class="topbar-left">
+            </div>
+            <div class="topbar-right">
+                <div class="header-plaque" title="Triagem geografica com balanceamento de ilhas e controle de XPT.">
+                    <span class="plaque-title">WMS</span>
+                    <span class="plaque-subtitle">Classico</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="content">
+            @RenderBody()
+        </main>
+    </div>
+</body>
+</html>

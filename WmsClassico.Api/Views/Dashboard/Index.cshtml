@@ -1,0 +1,597 @@
+@model DashboardViewModel
+@{
+    ViewData["Title"] = "Painel";
+}
+
+<!-- Indicadores com Retângulos (Visual Circular) -->
+<section class="indicators-bar">
+    <div class="indicator-item">
+        <div class="gauge-blocks">
+            @for (int i = 0; i < 12; i++)
+            {
+                <div class="gauge-block @(i < (Model.FullCagesPercent / 100m * 12m) ? "filled" : "empty")"></div>
+            }
+        </div>
+        <div class="indicator-info">
+            <span class="indicator-value">@Model.FullCagesPercent%</span>
+            <span class="indicator-label">Gaiolas Cheias</span>
+        </div>
+    </div>
+    
+    @foreach (var wave in Model.WaveOccupancy)
+    {
+        <div class="indicator-item">
+            <div class="gauge-blocks wave-@wave.WaveNumber">
+                @for (int i = 0; i < 12; i++)
+                {
+                    <div class="gauge-block @(i < (wave.OccupancyPercent / 100m * 12m) ? "filled" : "empty")"></div>
+                }
+            </div>
+            <div class="indicator-info">
+                <span class="indicator-value">@wave.OccupancyPercent%</span>
+                <span class="indicator-label">@wave.WaveName</span>
+                <span class="indicator-sublabel">@string.Join(", ", wave.Islands)</span>
+            </div>
+        </div>
+    }
+</section>
+
+<!-- Resumo de Pacotes -->
+<section class="panel summary-panel">
+    <div class="panel-header">
+        <h2>Resumo de Pacotes</h2>
+        <p>Visao por status operacional - clique na quantidade para alterar</p>
+    </div>
+
+    <div class="summary-cards">
+        @foreach (var item in Model.PackageSummary)
+        {
+            <article class="summary-card @item.StatusCode.ToLowerInvariant()" 
+                     onclick="showStatusUpdateModal('@item.StatusCode', '@item.StatusLabel', @item.Quantity)">
+                <span class="summary-label">@item.StatusLabel</span>
+                <strong class="summary-value">@item.Quantity</strong>
+            </article>
+        }
+    </div>
+</section>
+
+<!-- Ondas - Pacotes e Ilhas por Onda -->
+<section class="panel waves-panel">
+    <div class="panel-header">
+        <h2>Pacotes e Ilhas por Onda</h2>
+    </div>
+    <div class="waves-grid">
+        @foreach (var wave in Model.WaveOccupancy)
+        {
+            <div class="wave-card">
+                <h3>@wave.WaveName</h3>
+                <div class="wave-stats">
+                    <div class="wave-stat">
+                        <span class="stat-value">@wave.CurrentOccupancy</span>
+                        <span class="stat-label">Pacotes</span>
+                    </div>
+                    <div class="wave-stat">
+                        <span class="stat-value">@wave.Islands.Count</span>
+                        <span class="stat-label">Ilhas</span>
+                    </div>
+                    <div class="wave-stat">
+                        <span class="stat-value">@wave.OccupancyPercent%</span>
+                        <span class="stat-label">Ocupacao</span>
+                    </div>
+                </div>
+                <p class="wave-islands">@string.Join(", ", wave.Islands)</p>
+            </div>
+        }
+    </div>
+</section>
+
+<!-- Gaiolas por Onda -->
+<section class="panel cages-panel">
+    <div class="panel-header">
+        <h2>Gaiolas por Onda</h2>
+    </div>
+    <div class="cages-grid">
+        @foreach (var wave in Model.WaveOccupancy)
+        {
+            var waveCages = Model.Cages.Where(c => c.WaveNumber == wave.WaveNumber).ToList();
+            <div class="wave-cages">
+                <h3>Onda @wave.WaveNumber</h3>
+                <div class="cages-list">
+                    @foreach (var cage in waveCages)
+                    {
+                        <div class="cage-item @(cage.IsReadyForDispatch ? "ready" : "")">
+                            <span class="cage-code">@cage.Code</span>
+                            <span class="cage-name">@cage.Name</span>
+                            <span class="cage-occupancy">@cage.CurrentOccupancy/@cage.MaxCapacity (@cage.OccupancyPercent%)</span>
+                            @if (cage.IsReadyForDispatch)
+                            {
+                                <span class="cage-ready-badge">Pronto</span>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</section>
+
+<!-- Ilhas Fechadas/Prontas para Expedição -->
+<section class="panel island-closed-panel">
+    <div class="panel-header">
+        <h2>Ilhas Fechadas e Prontas para Expedicao</h2>
+    </div>
+    <div class="island-closed-list">
+        @foreach (var island in Model.IslandsClosed)
+        {
+            <div class="island-closed-item @(island.IsClosed ? "closed" : "") @(island.IsReadyForDispatch ? "ready" : "")">
+                <span class="island-code">@island.IslandCode</span>
+                <span class="island-name">@island.IslandName</span>
+                <span class="island-status">@(island.IsClosed ? "Fechada" : "Aberta")</span>
+                @if (island.IsReadyForDispatch)
+                {
+                    <span class="island-ready-badge">Pronta para Expedicao</span>
+                }
+                @if (!string.IsNullOrEmpty(island.FormattedClosedAt))
+                {
+                    <span class="island-closed-time">@island.FormattedClosedAt</span>
+                }
+            </div>
+        }
+    </div>
+</section>
+
+<div class="grid">
+    <section class="panel form-panel">
+        <div class="panel-header">
+            <h2>Triagem Manual Assistida</h2>
+            <p>Digite os dados do pacote e veja para qual ilha e subarea ele deve ir.</p>
+        </div>
+
+        <form asp-action="Triage" asp-controller="Dashboard" method="post" class="triage-form">
+            <div asp-validation-summary="ModelOnly" class="validation"></div>
+
+            <label asp-for="Form.Barcode"></label>
+            <input asp-for="Form.Barcode" />
+
+            <label asp-for="Form.Destination"></label>
+            <input asp-for="Form.Destination" />
+
+            <label asp-for="Form.FlowType"></label>
+            <select asp-for="Form.FlowType">
+                <option value="CAPITAL">CAPITAL</option>
+                <option value="XPT">XPT</option>
+            </select>
+
+            <label asp-for="Form.RouteCode"></label>
+            <select asp-for="Form.RouteCode" asp-items="Model.Routes"></select>
+
+            <label asp-for="Form.DepartureDay"></label>
+            <select asp-for="Form.DepartureDay">
+                <option value="Monday">Segunda</option>
+                <option value="Tuesday">Terca</option>
+                <option value="Wednesday">Quarta</option>
+                <option value="Thursday">Quinta</option>
+                <option value="Friday">Sexta</option>
+                <option value="Saturday">Sabado</option>
+                <option value="Sunday">Domingo</option>
+            </select>
+
+            <label asp-for="Form.ServiceType"></label>
+            <select asp-for="Form.ServiceType">
+                <option value="PADRAO">PADRAO</option>
+                <option value="EXPRESSO">EXPRESSO</option>
+            </select>
+
+            <button type="submit">Calcular triagem</button>
+        </form>
+    </section>
+
+    <section class="panel result-panel">
+        <div class="panel-header">
+            <h2>Resposta Operacional</h2>
+            <p>Instrucao que o sorteador deve seguir no momento da pesca na esteira.</p>
+        </div>
+
+        @if (Model.Decision is null)
+        {
+            <div class="empty-state">
+                <strong>Nenhuma triagem executada ainda.</strong>
+                <span>Use o formulario ao lado para gerar a instrucao operacional.</span>
+            </div>
+        }
+        else
+        {
+            <div class="decision-status @Model.Decision.FlowStatus.ToLowerInvariant()">
+                <span class="status-dot"></span>
+                <strong>@Model.Decision.FlowStatus</strong>
+                <span>@(Model.Decision.AllowDirection ? "Direcionamento liberado" : "Direcionamento bloqueado")</span>
+            </div>
+
+            <dl class="decision-grid">
+                <div>
+                    <dt>Pacote</dt>
+                    <dd>@Model.Decision.Barcode</dd>
+                </div>
+                <div>
+                    <dt>Destino</dt>
+                    <dd>@Model.Decision.Destination</dd>
+                </div>
+                <div>
+                    <dt>Fluxo</dt>
+                    <dd>@Model.Decision.FlowType</dd>
+                </div>
+                <div>
+                    <dt>Rota</dt>
+                    <dd>@Model.Decision.RouteCode</dd>
+                </div>
+                <div>
+                    <dt>Ilha</dt>
+                    <dd>@Model.Decision.IslandCode - @Model.Decision.IslandName</dd>
+                </div>
+                <div>
+                    <dt>Subarea</dt>
+                    <dd>@Model.Decision.SlotCode</dd>
+                </div>
+                <div>
+                    <dt>Prioridade</dt>
+                    <dd>@Model.Decision.PriorityScore</dd>
+                </div>
+                <div>
+                    <dt>Acao</dt>
+                    <dd>@Model.Decision.Action</dd>
+                </div>
+            </dl>
+
+            <div class="reason-box">
+                <h3>Motivo da decisao</h3>
+                <p>@Model.Decision.Reason</p>
+            </div>
+
+            <div class="alert-box">
+                <h3>Alertas</h3>
+                @if (Model.Decision.Alerts.Count == 0)
+                {
+                    <p>Nenhum alerta no momento.</p>
+                }
+                else
+                {
+                    <ul>
+                        @foreach (var alert in Model.Decision.Alerts)
+                        {
+                            <li>@alert</li>
+                        }
+                    </ul>
+                }
+            </div>
+
+            <div class="alert-box poka-box">
+                <h3>Poka Yoke</h3>
+                @if (Model.Decision.PokaYokeAlerts.Count == 0)
+                {
+                    <p>Nenhum bloqueio de Poka Yoke nesta leitura.</p>
+                }
+                else
+                {
+                    <ul>
+                        @foreach (var alert in Model.Decision.PokaYokeAlerts)
+                        {
+                            <li>@alert.Code - @alert.Message</li>
+                        }
+                    </ul>
+                }
+                <p class="meta-line">Status do pacote: @Model.Decision.PackageStatus | Excecao: @Model.Decision.ExceptionReason</p>
+            </div>
+        }
+    </section>
+</div>
+
+
+<section class="panel island-panel">
+    <div class="panel-header">
+        <h2>Painel de Ilhas</h2>
+        <p>Visao rapida da ocupacao por ilha e das subareas internas para capital e XPT.</p>
+    </div>
+
+    <div class="island-cards">
+        @foreach (var island in Model.Islands)
+        {
+            <article class="island-card">
+                <div class="island-card-head">
+                    <div>
+                        <p class="eyebrow">@island.Code</p>
+                        <h3>@island.Name</h3>
+                        <p class="muted">Destino: @island.DestinationKey | Distancia: @island.DistanceRank</p>
+                    </div>
+                    <span class="status-pill @island.FlowStatusCode.ToLowerInvariant()">@island.FlowStatusCode</span>
+                </div>
+
+                <div class="meter">
+                    <div class="meter-fill @island.FlowStatusCode.ToLowerInvariant()" style="width:@($"{island.OccupancyPercent}%")"></div>
+                </div>
+
+                <div class="island-metrics">
+                    <span>Ocupacao: @island.CurrentOccupancy / @island.MaxCapacity</span>
+                    <span>@island.OccupancyPercent%</span>
+                    <span>Share XPT: @island.XptSharePercent%</span>
+                </div>
+
+                <table>
+                    <thead>
+                            <tr>
+                                <th>Subarea</th>
+                                <th>Perfil</th>
+                                <th>Saida</th>
+                                <th>Uso</th>
+                            </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var slot in island.Slots)
+                        {
+                            <tr>
+                                <td>
+                                    @slot.Code
+                                    @if (slot.IsContingency)
+                                    {
+                                        <span class="tag">contingencia</span>
+                                    }
+                                </td>
+                                <td>@(slot.SupportedFlow == "XPT" ? "XPT interno" : slot.SupportedFlow == "CAPITAL" ? "Capital interno" : "Misto")</td>
+                                <td>@(slot.AllowedDepartureDays.Count == 0 ? "Todos" : string.Join(", ", slot.AllowedDepartureDays))</td>
+                                <td>@slot.CurrentOccupancy / @slot.MaxCapacity (@slot.OccupancyPercent%)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </article>
+        }
+    </div>
+</section>
+
+<section class="panel tracking-panel">
+    <div class="panel-header">
+        <h2>Rastreabilidade de Pacotes</h2>
+        <p>Base inicial para acompanhar ate 30 mil pacotes com status, motivo e ultima localizacao operacional.</p>
+    </div>
+
+    <div class="tracking-filters">
+        <input id="tracking-search" type="text" placeholder="Buscar por pacote, destino ou motivo" />
+        <select id="tracking-status">
+            <option value="">Todos os status</option>
+            @foreach (var status in Model.PackageStatuses)
+            {
+                <option value="@status">@status</option>
+            }
+        </select>
+        <select id="tracking-flow">
+            <option value="">Todos os fluxos</option>
+            @foreach (var flow in Model.PackageFlows)
+            {
+                <option value="@flow">@flow</option>
+            }
+        </select>
+        <select id="tracking-route">
+            <option value="">Todas as rotas</option>
+            @foreach (var route in Model.PackageRoutes)
+            {
+                <option value="@route">@route</option>
+            }
+        </select>
+        <label class="inline-check">
+            <input id="tracking-problem-only" type="checkbox" />
+            <span>Somente Caso PS</span>
+        </label>
+    </div>
+
+    <div class="tracking-table-wrap">
+        <table class="tracking-table" id="tracking-table">
+            <thead>
+                <tr>
+                    <th>Pacote</th>
+                    <th>Status</th>
+                    <th>Motivo</th>
+                    <th>Destino</th>
+                    <th>Rota</th>
+                    <th>Fluxo</th>
+                    <th>Local</th>
+                    <th>Buffer/irmao</th>
+                    <th>Atualizado</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var package in Model.Packages)
+                {
+                    <tr class="@(package.IsProblemCase ? "problem-row" : string.Empty)"
+                        data-barcode="@package.Barcode"
+                        data-status="@package.StatusLabel"
+                        data-exception="@package.ExceptionReasonLabel"
+                        data-destination="@package.Destination"
+                        data-route="@package.RouteCode"
+                        data-flow="@package.FlowType"
+                        data-problem="@(package.IsProblemCase ? "true" : "false")">
+                        <td>@package.Barcode</td>
+                        <td><span class="mini-badge">@package.StatusLabel</span></td>
+                        <td>@package.ExceptionReasonLabel</td>
+                        <td>@package.Destination</td>
+                        <td>@package.RouteCode</td>
+                        <td>@package.FlowType</td>
+                        <td>@(string.IsNullOrWhiteSpace(package.LastIslandCode) ? "Sem recebimento" : $"{package.LastIslandCode}/{package.LastSlotCode}")</td>
+                        <td>
+                            @if (!string.IsNullOrWhiteSpace(package.BrotherBarcode))
+                            {
+                                <span>Irmao: @package.BrotherBarcode</span>
+                            }
+                            else if (!string.IsNullOrWhiteSpace(package.PlannedDepartureDate))
+                            {
+                                <span>Saida: @package.PlannedDepartureDate</span>
+                            }
+                            else
+                            {
+                                <span>-</span>
+                            }
+                        </td>
+                        <td>@package.LastUpdatedAt</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<script>
+    (() => {
+        const search = document.getElementById("tracking-search");
+        const status = document.getElementById("tracking-status");
+        const flow = document.getElementById("tracking-flow");
+        const route = document.getElementById("tracking-route");
+        const problemOnly = document.getElementById("tracking-problem-only");
+        const rows = Array.from(document.querySelectorAll("#tracking-table tbody tr"));
+
+        const normalize = (value) => (value || "").toLowerCase().trim();
+
+        const applyFilters = () => {
+            const searchValue = normalize(search.value);
+            const statusValue = status.value;
+            const flowValue = flow.value;
+            const routeValue = route.value;
+            const problemValue = problemOnly.checked;
+
+            rows.forEach((row) => {
+                const haystack = [
+                    row.dataset.barcode,
+                    row.dataset.destination,
+                    row.dataset.exception,
+                    row.dataset.route
+                ].join(" ").toLowerCase();
+
+                const matchSearch = !searchValue || haystack.includes(searchValue);
+                const matchStatus = !statusValue || row.dataset.status === statusValue;
+                const matchFlow = !flowValue || row.dataset.flow === flowValue;
+                const matchRoute = !routeValue || row.dataset.route === routeValue;
+                const matchProblem = !problemValue || row.dataset.problem === "true";
+
+                row.style.display = matchSearch && matchStatus && matchFlow && matchRoute && matchProblem
+                    ? ""
+                    : "none";
+            });
+        };
+
+        [search, status, flow, route, problemOnly].forEach((element) => {
+            element.addEventListener("input", applyFilters);
+            element.addEventListener("change", applyFilters);
+        });
+        
+        // Pesquisa de rotas e logs Poka Yoke
+        const routePokaSearch = document.getElementById("route-poka-search");
+        const searchBtn = document.getElementById("search-btn");
+        const pokaLogsPanel = document.getElementById("poka-logs-panel");
+        const pokaLogItems = Array.from(document.querySelectorAll(".poka-log-item"));
+        
+        const applyPokaSearch = () => {
+            const searchValue = normalize(routePokaSearch.value);
+            
+            // Mostrar painel apenas se houver pesquisa
+            if (pokaLogsPanel) {
+                if (searchValue) {
+                    pokaLogsPanel.classList.remove("hidden");
+                } else {
+                    pokaLogsPanel.classList.add("hidden");
+                }
+            }
+            
+            pokaLogItems.forEach((item) => {
+                const searchData = item.dataset.search.toLowerCase();
+                item.style.display = !searchValue || searchData.includes(searchValue)
+                    ? ""
+                    : "none";
+            });
+        };
+        
+        if (routePokaSearch) {
+            routePokaSearch.addEventListener("input", applyPokaSearch);
+        }
+        
+        if (searchBtn) {
+            searchBtn.addEventListener("click", applyPokaSearch);
+        }
+        
+        // Funções para mostrar/ocultar logs Poka Yoke ao focar na barra de pesquisa
+        let pokaHideTimeout = null;
+        
+        window.showPokaLogs = function() {
+            if (pokaLogsPanel) {
+                clearTimeout(pokaHideTimeout);
+                pokaLogsPanel.classList.remove("hidden");
+            }
+        };
+        
+        window.hidePokaLogsAfterDelay = function() {
+            if (pokaLogsPanel) {
+                pokaHideTimeout = setTimeout(() => {
+                    pokaLogsPanel.classList.add("hidden");
+                }, 300);
+            }
+        };
+        
+        window.cancelHidePoka = function() {
+            clearTimeout(pokaHideTimeout);
+        };
+        
+        // Modal de atualização de status
+        const modal = document.getElementById("status-modal");
+        const modalStatusCode = document.getElementById("modal-status-code");
+        const modalStatusLabel = document.getElementById("modal-status-label");
+        const modalQuantity = document.getElementById("modal-quantity");
+        
+        window.showStatusUpdateModal = function(statusCode, statusLabel, currentQuantity) {
+            if (modal) {
+                modalStatusCode.value = statusCode;
+                modalStatusLabel.textContent = statusLabel;
+                modalQuantity.value = currentQuantity;
+                modal.classList.add("active");
+            }
+        };
+        
+        window.closeStatusModal = function() {
+            if (modal) {
+                modal.classList.remove("active");
+            }
+        };
+        
+        window.saveStatusUpdate = function() {
+            const newStatus = document.getElementById("new-status").value;
+            const quantity = parseInt(modalQuantity.value) || 0;
+            
+            if (newStatus && quantity > 0) {
+                // Aqui você faria a chamada AJAX para atualizar
+                alert(`Atualizando ${quantity} pacotes para ${newStatus}`);
+                closeStatusModal();
+                // Recarregar a página para ver as mudanças
+                location.reload();
+            }
+        };
+    })();
+</script>
+
+<!-- Modal de Atualização de Status -->
+<div class="status-modal" id="status-modal">
+    <div class="modal-content">
+        <h3>Atualizar Status</h3>
+        <p>Status atual: <strong id="modal-status-label"></strong></p>
+        <input type="hidden" id="modal-status-code" />
+        <label>Nova quantidade:</label>
+        <input type="number" id="modal-quantity" min="0" value="0" />
+        <label>Novo status:</label>
+        <select id="new-status" style="width: 100%; padding: 12px; border-radius: 8px; margin-bottom: 16px;">
+            <option value="">Selecione...</option>
+            <option value="Em Rota">Em Rota</option>
+            <option value="Caso PS">Caso PS</option>
+            <option value="Buffer">Buffer</option>
+            <option value="Para Expedir">Para Expedir</option>
+            <option value="A Caminho">A Caminho</option>
+        </select>
+        <div class="modal-buttons">
+            <button type="button" class="cancel-btn" onclick="closeStatusModal()">Cancelar</button>
+            <button type="button" class="save-btn" onclick="saveStatusUpdate()">Salvar</button>
+        </div>
+    </div>
+</div>
