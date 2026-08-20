@@ -1,3 +1,12 @@
+## INICIATIVA
+
+Trabalhando com lógistica é fácil presumir que observamos um problema e pensamos
+"Como eu resolveria isto do meu modo?" e bem, este projeto é fruto deste pensamento.
+Eu precisava de algo que controlasse o fluxo de mercadoria que deveria ser expedido
+pouco depois do seu processamento indicando onde cada pacote está, qual rota vai sair
+mapa de calor das ilhas bem como quais gaiolas precisam ser auditadas e fico orgulhoso de mostrar
+que consegui construir uma ferramenta como esta, tanto por me servir como aprendizado com visão
+operacional quanto para aprimorar minahs habilidades em programação.
 # WMS Classico
 
 Sistema de Gerenciamento de Armazém (Warehouse Management System) desenvolvido em .NET 10.
@@ -39,15 +48,6 @@ WmsClassico.slnx
 
 - .NET 10 SDK
 - Visual Studio 2022+ ou VS Code
-
-### Executando o projeto
-
-```bash
-cd WmsClassico.Api
-dotnet run
-```
-
-A API estará disponível em `https://localhost:7xxx`
 
 ### Endpoints principais
 
